@@ -8,6 +8,34 @@ V='\e[1;32m'; R='\e[1;31m'; A='\e[1;34m'; C='\e[1;36m'; Y='\e[1;33m'; B='\e[1;37
 PATH_LAB="/root/umbrel/umbrel-data/home/Downloads/laboratorio_c"
 PATH_C="$PATH_LAB/CODIGOS"
 VNC_FILE="/usr/share/novnc/vnc.html"
+{
+# --- FUNCIÓN DE AUTO-INSTALACIÓN PARA COMPARTIR ---
+preparar_sistema_share() {
+    # 1. Instalar paquetes si faltan (at para tiempo, qrencode para QR)
+    if ! command -v at &> /dev/null || ! command -v qrencode &> /dev/null; then
+        echo -e "${Y}⚙️ Componentes faltantes detectados. Instalando...${RE}"
+        sudo apt update && sudo apt install -y at qrencode
+        sudo systemctl enable --now atd
+    fi
+
+    # 2. Crear la carpeta compartida si no existe
+    if [ ! -d "/var/www/html/share" ]; then
+        sudo mkdir -p "/var/www/html/share"
+        sudo chmod 777 "/var/www/html/share"
+    fi
+
+    # 3. Inyectar la "puerta" en Nginx automáticamente
+    if ! grep -q "location /share/" "/etc/nginx/sites-available/web-definitiva"; then
+        echo -e "${Y}⚙️ Configurando acceso publico en Nginx...${RE}"
+        sudo sed -i '/location \/c\/ {/i \
+    location /share/ { \
+        alias /var/www/html/share/; \
+        autoindex off; \
+        add_header Content-Disposition "attachment"; \
+    }' "/etc/nginx/sites-available/web-definitiva"
+        sudo systemctl restart nginx
+    fi
+}
 
 # --- MOTOR DE ESTADO ---
 st() {
@@ -81,7 +109,35 @@ menu_hacker() { # [S3]
         esac
     done
 }
-
+# --- DEPARTAMENTO DE INTERCAMBIO ---
+menu_compartir() {
+    preparar_sistema_share # Primero ejecuta la auto-instalacion
+    while true; do
+        header
+        echo -e " ${Y}📤 [S13] INTERCAMBIO DE ARCHIVOS (QR)${RE}"
+        echo -e " ----------------------------------------------------"
+        echo -e "  ${V}[1] •${RE} COMPARTIR CODIGO .C (CON QR)"
+        echo -e "  ${V}[2] •${RE} COMPARTIR LINK EXTERNO (QR TEMP)"
+        echo -e " ----------------------------------------------------"
+        echo -e "  ${R}[0] • VOLVER${RE}"
+        read -p " Acción: " c_op
+        
+        if [ "$c_op" == "1" ]; then
+            cd "$PATH_C"
+            files=(*)
+            for i in "${!files[@]}"; do echo -e "[$i] ${files[$i]}"; done
+            read -p "Número: " idx
+            read -p "Minutos de vida: " mins
+            RANDOM_N=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8)
+            FILE_FIN="$RANDOM_N.${files[$idx]##*.}"
+            cp "${files[$idx]}" "/var/www/html/share/$FILE_FIN"
+            LINK="https://web-proyect.duckdns.org/share/$FILE_FIN"
+            clear; echo -e "${V}✔ QR GENERADO PARA: ${files[$idx]}${RE}"; qrencode -t ansiutf8 "$LINK"
+            echo "rm -f /var/www/html/share/$FILE_FIN" | at now + $mins minutes
+            read -p "Enter para volver..." x
+        elif [ "$c_op" == "0" ]; then break; fi
+    done
+}
 # --- MENU PRINCIPAL ---
 while true; do
     header
@@ -92,6 +148,7 @@ while true; do
     echo -e "  ${V}${B}[05] • 🔐 ACCESO SEGURO OTP  [10] • 🆘 BOT RESCATE (TG)${RE}"
     echo -e " ----------------------------------------------------"
     echo -e "  ${V}${B}[11] • 🤖 IA PRIVADA (LLAMA) [12] • 📦 BACKUP AUTO (ZIP)${RE}"
+    echo -e "  ${V}${B}[13] • 📤 COMPARTIR LINK CON QR
     echo -e " ----------------------------------------------------"
     echo -ne "\n ${Y}${B}INFORME UNA OPCION : ${RE}"
     read main_op
@@ -108,6 +165,7 @@ while true; do
         10) screen -dmS bot-term python3 /root/bot_terminal.py; echo "Rescate ON" ;;
         11) ollama run llama3 ;;
         12) cd /root && zip -r backup_$(date +%d%m).zip umbrel telegram-bot; echo "Hecho." ;;
+        13) menu_compartir ;;
         0) exit ;;
     esac
 done
