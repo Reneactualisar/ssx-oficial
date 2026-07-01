@@ -8,144 +8,131 @@ PATH_LAB="/root/umbrel/umbrel-data/home/Downloads/laboratorio_c"
 PATH_C="$PATH_LAB/CODIGOS"
 VNC_FILE="/usr/share/novnc/vnc.html"
 SHARE_DIR="/var/www/html/share"
-# --- FUNCIÓN: CONFIGURACIÓN AUTOMÁTICA DE INTERCAMBIO ---
- preparar_sistema_share() {
-    echo -e "${Y}🔍 Verificando sistema de intercambio...${RE}"
+NGINX_CONF="/etc/nginx/sites-available/web-definitiva"
 
-    # 1. Instalar qrencode (QR) y at (Tiempo) si no existen
-    if ! command -v qrencode &> /dev/null || ! command -v at &> /dev/null; then
-        echo -e "${Y}⚙️ Instalando herramientas faltantes...${RE}"
-        sudo apt update && sudo apt install -y qrencode at
-        sudo systemctl enable --now atd
-    fi
-
-    # 2. Crear carpeta pública si no existe
-    if [ ! -d "/var/www/html/share" ]; then
-        sudo mkdir -p /var/www/html/share
-        sudo chmod 777 /var/www/html/share
-    fi
-
-    # 3. Inyectar en Nginx si la ruta /share/ no existe
-    NGINX_FILE="/etc/nginx/sites-available/web-definitiva"
-    if [ -f "$NGINX_FILE" ]; then
-        if ! grep -q "location /share/" "$NGINX_FILE"; then
-            echo -e "${Y}⚙️ Abriendo puerta /share/ en Nginx...${RE}"
-            sudo sed -i '/location \/c\/ {/i \
-    location /share/ { \
-        alias /var/www/html/share/; \
-        autoindex off; \
-        add_header Content-Disposition "attachment"; \
-    ' "$NGINX_FILE"
-            sudo systemctl restart nginx
+# --- MOTOR DE INSTALACIÓN AUTOMÁTICA ---
+# Esta función instala CUALQUIER comando que falte al instante
+instalar() {
+    for pkg in "$@"; do
+        if ! command -v "$pkg" &> /dev/null; then
+            echo -e "${Y}⚙️ VPS detectó falta de [$pkg]. Instalando automáticamente...${RE}"
+            sudo apt update -y && sudo apt install -y "$pkg"
+            echo -e "${V}✔ $pkg listo.${RE}"
         fi
-    fi
-    echo -e "${V}✔ Todo listo para compartir.${RE}"
-    sleep 1
-    }
+    done
 }
 
-menu_prog() { # [S1]
+# --- MOTOR DE ESTADO ---
+st() {
+    if pgrep "$1" > /dev/null || screen -ls | grep -q "$1"; then echo -ne "${V}ON${RE}"; else echo -ne "${R}OFF${RE}"; fi
+}
+
+# --- ENCABEZADO PROFESIONAL ---
+header() {
+    clear
+    IP_V=$(hostname -I | awk '{print $1}')
+    HORA=$(date +"%I:%M:%S %p")
+    CPU=$(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}')"%"
+    RAM_T=$(free -h | awk 'NR==2 {print $2}')
+    RAM_U=$(free -h | awk 'NR==2 {print $3}')
+    echo -e "${C}╔══════════════════════════════════════════════════════════════╗${RE}"
+    echo -e "║  ${B}SSX-OFICIAL v50.0 - MASTER-CONTROL - DXVID DEVELOPER${RE}        ${C}║${RE}"
+    echo -e "║  ${B}CENTRO DE CONTROL EN DESARROLLO - VPS ORLANDO${RE}               ${C}║${RE}"
+    echo -e "╠══════════════════════┳═══════════════════════┳═══════════════╣${RE}"
+    echo -e "║ ${B}SISTEMA${RE}             ${C}║${RE} ${B}MEMORIA RAM${RE}           ${C}║${RE} ${B}PROCESADOR${RE}    ${C}║${RE}"
+    printf "${C}║${RE} IP: %-16s ${C}║${RE} Total: %-10s  ${C}║${RE} Cores: 4       ${C}║${RE}\n" "$IP_V" "$RAM_T"
+    printf "${C}║${RE} Hora: %-14s ${C}║${RE} En uso: %-9s   ${C}║${RE} Uso: %-10s ${C}║${RE}\n" "$HORA" "$RAM_U" "$CPU"
+    echo -e "${A}╠══════════════════════╩═══════════════════════╩═══════════════╣${RE}"
+    echo -e "║ ${B}TURBO C:${RE} $(st dosbox)  | ${B}BOT TG:${RE} $(st bot-cine) | ${B}IA:${RE} $(st ollama) | ${B}WEB:${RE} $(st nginx) ║"
+    echo -e "${C}╚══════════════════════════════════════════════════════════════╝${RE}"
+}
+
+# --- DEPARTAMENTOS (SUBMENÚS) ---
+
+menu_prog() {
     while true; do
-        header; echo -e " ${Y}📂 [01] PROGRAMACION Y OPTIMIZACION (C)${RE}"
+        header; echo -e " ${Y}📂 [01] PROGRAMACION NIVEL DIOS (C/UNI)${RE}"
         echo -e " ----------------------------------------------------"
-        echo -e "  ${V}[01] •${RE} TURBO C (ON/OFF)    | ${V}[05] •${RE} COMPILAR (GCC PRO)"
-        echo -e "  ${V}[02] •${RE} CREAR .C (PEGAR)    | ${V}[06] •${RE} FORMATEAR (INDENT)"
-        echo -e "  ${V}[03] •${RE} PLANTILLA EXAMEN    | ${V}[07] •${RE} ZIP SELECTIVO"
-        echo -e "  ${V}[04] •${RE} BUSCAR EN CODIGOS   | ${V}[08] •${RE} LIMPIAR .OBJ/.EXE"
+        echo -e "  ${V}[01] •${RE} TURBO C ON/OFF    | ${V}[04] •${RE} PLANTILLA EXAMEN"
+        echo -e "  ${V}[02] •${RE} CREAR .C (PEGAR)  | ${V}[05] •${RE} ZIP SELECTIVO"
+        echo -e "  ${V}[03] •${RE} FORMATEAR (INDENT)| ${V}[06] •${RE} MODO NINJA WEB"
         echo -e " ----------------------------------------------------"
         echo -e "  ${R}[00] • VOLVER${RE}"
-        read -p " Acción: " op
-        case $op in
+        read -p " Selección: " op1
+        case $op1 in
             1) if screen -ls | grep -q "laboratorio"; then sudo pkill -9 dosbox; else screen -dmS laboratorio bash ~/start_turboc.sh; fi ;;
-            2) read -p "Nombre: " n; [[ $n != *.c ]] && n="$n.c"; echo "Pega código y escribe FIN:"; lines=(); while read -r l; do [[ "$l" == "FIN" ]] && break; lines+=("$l"); done; printf "%s\n" "${lines[@]}" > "$PATH_C/$n"; chmod 777 "$PATH_C/$n" ;;
-            5) read -p "Archivo a compilar: " f; gcc -O3 "$PATH_C/$f" -o "$PATH_C/prog.out" -lm && echo "¡Optimizado! Ejecutando:"; "$PATH_C/prog.out"; read -p "Enter..." x ;;
-            7) cd $PATH_C; files=(*.c); for i in "${!files[@]}"; do echo "[$i] ${files[$i]}"; done; read -p "Nums: " s; read -p "Nom: " nz; f_z=""; for i in $s; do f_z+="${files[$i]} "; done; zip "$PATH_LAB/$nz.zip" $f_z ;;
-            8) rm -rf $PATH_C/*.OBJ $PATH_C/*.EXE; echo "Limpio." ;;
-            0|00) break ;;
+            2) read -p "Nombre: " n; [[ $n != *.c ]] && n="$n.c"; echo "Pega algoritmo y escribe 'FIN':"; lines=(); while read -r l; do [[ "$l" == "FIN" ]] && break; lines+=("$l"); done; printf "%s\n" "${lines[@]}" > "$PATH_C/$n"; chmod 777 "$PATH_C/$n" ;;
+            3) instalar indent; indent $PATH_C/*.c ;;
+            4) read -p "Nombre: " n; cat <<P > "$PATH_C/$n.c"
+#include <stdio.h>
+#include <conio.h>
+void main() { clrscr(); printf("Listo..."); getch(); }
+P
+               chmod 777 "$PATH_C/$n.c" ;;
+            5) instalar zip; cd $PATH_C; files=(*.c); for i in "${!files[@]}"; do echo "[$i] ${files[$i]}"; done; read -p "Nums: " s; read -p "Nom ZIP: " nz; f_z=""; for i in $s; do f_z+="${files[$i]} "; done; zip "$PATH_LAB/$nz.zip" $f_z ;;
+            0) break ;;
         esac
     done
 }
-menu_hacker() { # [S3]
+
+menu_hacker() {
     while true; do
-        header; echo -e " ${Y}🛡️ [03] AUDITORIA DE SEGURIDAD Y HACKING${RE}"
+        header; echo -e " ${Y}🛡️ [03] CIBERSEGURIDAD Y AUDITORIA${RE}"
         echo -e " ----------------------------------------------------"
-        echo -e "  ${V}[01] •${RE} RASTREAR IP (MAPA)  | ${V}[04] •${RE} NMAP (SCAN PUERTOS)"
-        echo -e "  ${V}[02] •${RE} NIKTO (SCAN WEB)    | ${V}[05] •${RE} SQL MAP (AUDIT DB)"
-        echo -e "  ${V}[03] •${RE} DIRB (FOLDERS)      | ${V}[06] •${RE} BLOQUEAR IP (BAN)"
+        echo -e "  ${V}[01] •${RE} RASTREAR IP (MAPA)| ${V}[03] •${RE} SCAN WEB (NIKTO)"
+        echo -e "  ${V}[02] •${RE} NMAP SCAN PUERTOS | ${V}[04] •${RE} BLOQUEAR IP (BAN)"
         echo -e " ----------------------------------------------------"
-        echo -e "  ${V}[07] •${RE} QUIEN ENTRA A MI WEB (LOGS EN VIVO)"
-        echo -e "  ${V}[08] •${RE} HISTORIAL DE ACCESOS (SSH)"
         echo -e "  ${R}[00] • VOLVER${RE}"
-        read -p " Acción: " op
-        case $op in
-            1) read -p "IP: " t; DATA=$(curl -s http://ip-api.com/json/$t); LAT=$(echo $DATA | grep -oP '(?<="lat":)[^,]*'); LON=$(echo $DATA | grep -oP '(?<="lon":)[^,]*'); echo -e "${V}Ubicación: $DATA${RE}\n${C}Mapa: https://www.google.com/maps?q=$LAT,$LON${RE}"; read -p "Enter..." x ;;
-            2) read -p "URL: " t; nikto -h $t; read -p "Enter..." x ;;
-            3) read -p "URL: " t; dirb $t; read -p "Enter..." x ;;
-            4) read -p "Host: " t; nmap -F $t; read -p "Enter..." x ;;
-            5) read -p "URL: " t; sqlmap -u $t --batch; read -p "Enter..." x ;;
-            6) read -p "IP a banear: " bip; sudo ufw deny from $bip; sudo ufw reload ;;
-            7) sudo tail -f /var/log/nginx/access.log ;;
-            8) last -n 15; read -p "Enter..." x ;;
-            0|00) break ;;
+        read -p " Selección: " op3
+        case $op3 in
+            1) read -p "IP: " t; curl -s http://ip-api.com/json/$t; read -p "Enter..." x ;;
+            2) instalar nmap; read -p "Host: " t; nmap -F $t; read -p "Enter..." x ;;
+            3) instalar nikto; read -p "Web: " t; nikto -h $t; read -p "Enter..." x ;;
+            4) read -p "IP: " b; sudo ufw deny from $b; sudo ufw reload ;;
+            0) break ;;
         esac
     done
 }
-# --- DEPARTAMENTO DE INTERCAMBIO ---
-menu_compartir() {
-    preparar_sistema_share
-    while true; do
-        header
-        echo -e " ${Y}📤 [S13] COMPARTIR ARCHIVO (QR)${RE}"
-        echo -e " ----------------------------------------------------"
-        cd "$PATH_C"
-        files=(*)
-        if [ ${#files[@]} -eq 0 ]; then echo "No hay archivos."; sleep 2; break; fi
-        for i in "${!files[@]}"; do echo -e "  ${C}[$i]${RE} • ${files[$i]}"; done
-        echo -e " ----------------------------------------------------"
-        echo -e "  ${R}[0] • VOLVER${RE}"
-        read -p " Elije archivo: " idx
-        [[ "$idx" == "0" ]] && break
-        read -p " ¿Minutos de vida?: " mins
-        RANDOM_N=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8)
-        FILE_FIN="$RANDOM_N.${files[$idx]##*.}"
-        cp "${files[$idx]}" "$SHARE_DIR/$FILE_FIN"
-        chmod 644 "$SHARE_DIR/$FILE_FIN"
-        LINK="https://web-proyect.duckdns.org/share/$FILE_FIN"
-        clear; echo -e "${V}✔ QR GENERADO PARA: ${files[$idx]}${RE}"; qrencode -t ansiutf8 "$LINK"
-        echo -e "${Y}LINK:${RE} $LINK"
-        echo "rm -f $SHARE_DIR/$FILE_FIN" | at now + $mins minutes 2>/dev/null
-        read -p "Enter para volver..." x
-    done
+
+preparar_sistema_share() {
+    instalar qrencode at
+    sudo systemctl enable --now atd
+    mkdir -p $SHARE_DIR && chmod 777 $SHARE_DIR
+    if [ -f "$NGINX_CONF" ] && ! grep -q "location /share/" "$NGINX_CONF"; then
+        sudo sed -i '/location \/c\/ {/i \    location /share/ { alias /var/www/html/share/; autoindex off; add_header Content-Disposition "attachment"; }' "$NGINX_CONF"
+        sudo systemctl restart nginx
+    fi
 }
+
 # --- MENU PRINCIPAL ---
 while true; do
     header
-    echo -e "  ${V}${B}[01] • 📂 PROGRAMACION DIOS   [06] • 🧹 OPTIMIZAR SISTEMA${RE}"
-    echo -e "  ${V}${B}[02] • 🎬 CINE Y STREAMING   [07] • 📊 MONITORES (HTOP)${RE}"
-    echo -e "  ${V}${B}[03] • 🛡️  AUDITORIA HACKER   [08] • 🗃️  GESTOR DE DISCO${RE}"
-    echo -e "  ${V}${B}[04] • 🌐 CONEXION INTERNET  [09] • 🌍 CONFIGURAR PAIS${RE}"
-    echo -e "  ${V}${B}[05] • 🔐 ACCESO SEGURO OTP  [10] • 🆘 BOT RESCATE (TG)${RE}"
+    echo -e "  ${V}[01] • 📂 PROGRAMACION       [09] • 🌍 CONFIGURAR PAIS${RE}"
+    echo -e "  ${V}[02] • 🎬 CINE Y STREAMING   [10] • 🆘 BOT RESCATE (TG)${RE}"
+    echo -e "  ${V}[03] • 🛡️  AUDITORIA HACKER   [11] • 🤖 IA PRIVADA (LLAMA)${RE}"
+    echo -e "  ${V}[04] • 🌐 CONEXION INTERNET  [12] • 📦 BACKUP TOTAL (.ZIP)${RE}"
+    echo -e "  ${V}[05] • 🔐 ACCESO SEGURO OTP  [13] • 📤 COMPARTIR CON QR${RE}"
+    echo -e "  ${V}[06] • 🧹 OPTIMIZAR SISTEMA   [14] • 📊 MONITORES (HTOP)${RE}"
+    echo -e "  ${V}[07] • 📊 MONITOR DE RED     [15] • ⚙️  SISTEMA CLONADOR${RE}"
+    echo -e "  ${V}[08] • 🗃️  GESTOR DE DISCO    [00] • 🔴 SALIR DEL PANEL${RE}"
     echo -e " ----------------------------------------------------"
-    echo -e "  ${V}${B}[11] • 🤖 IA PRIVADA (LLAMA) [12] • 📦 BACKUP AUTO (ZIP)${RE}"
-    echo -e "  ${V}${B}[13] • 📤 COMPARTIR LINK CON QR
-    echo -e " ----------------------------------------------------"
-    echo -ne "\n ${Y}${B}INFORME UNA OPCION : ${RE}"
+    echo -ne "\n ${Y}ELIJE UNA SECCIÓN : ${RE}"
     read main_op
     case $main_op in
         1) menu_prog ;;
-        2) while true; do header; echo -e " [1] BOT ON | [2] BOT OFF | [3] SUBIDA MANUAL | [0] VOLVER"; read c; [[ $c == 1 ]] && cd ~/telegram-bot && screen -dmS bot-cine /usr/local/go/bin/go run ./cmd/fsb/*.go run; [[ $c == 2 ]] && screen -XS bot-cine quit; [[ $c == 3 ]] && python3 $SCRIPT_PELI; [[ $c == 0 ]] && break; done ;;
+        2) while true; do header; echo -e " [1] BOT ON | [2] BOT OFF | [3] SUBIDA MANUAL | [0] VOLVER"; read c; [[ $c == 1 ]] && cd ~/telegram-bot && screen -dmS bot-cine /usr/local/go/bin/go run ./cmd/fsb/*.go run; [[ $c == 2 ]] && screen -XS bot-cine quit; [[ $c == 0 ]] && break; done ;;
         3) menu_hacker ;;
-        4) header; echo -e "${Y}Protocolos de Red (ADM):${RE}"; read -p "Enter..." t ;;
-        5) P_T=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 12); pkill -9 ttyd; screen -dmS consola_temp ttyd -p 8091 -c root:$P_T bash; echo -e "${V}Pass: $P_T | Link: .../acceso/"; read -p "Enter para cerrar..." x; pkill -9 ttyd ;;
-        6) sudo sync; sudo sysctl -w vm.drop_caches=3; sudo docker system prune -f; echo "Limpio." ;;
-        7) htop ;;
-        8) ncdu / ;;
-        9) echo "Ej: America/Managua"; read -p "Zona: " z; sudo timedatectl set-timezone $z ;;
+        5) # Acceso OTP
+           P_T=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 12); instalar ttyd; pkill -9 ttyd; 
+           screen -dmS consola_temp ttyd -p 8091 -c root:$P_T bash;
+           echo -e "${V}Pass: $P_T | Link: .../acceso/"; read -p "Enter para cerrar..." x; pkill -9 ttyd ;;
+        6) sudo sync; sudo sysctl -w vm.drop_caches=3; echo "RAM Limpia" ;;
+        7) instalar nload; nload ;;
+        8) instalar ncdu; ncdu / ;;
         10) screen -dmS bot-term python3 /root/bot_terminal.py; echo "Rescate ON" ;;
-        11) ollama run llama3 ;;
-        12) cd /root && zip -r backup_$(date +%d%m).zip umbrel telegram-bot; echo "Hecho." ;;
-        13) menu_compartir ;;
+        11) curl -fsSL https://ollama.com/install.sh | sh; ollama run llama3 ;;
+        13) preparar_sistema_share; cd "$PATH_C"; files=(*); for i in "${!files[@]}"; do echo "[$i] ${files[$i]}"; done; read -p "Num: " idx; read -p "Mins: " m; R=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8); cp "${files[$idx]}" "$SHARE_DIR/$R.c"; echo "https://web-proyect.duckdns.org/share/$R.c" | qrencode -t ansiutf8; echo "rm -f $SHARE_DIR/$R.c" | at now + $m minutes; read -p "Enter..." x ;;
+        15) header; echo "Instalando bases de clonacion..."; instalar docker.io git golang-go python3-pip; echo "✔ VPS Lista."; sleep 2 ;;
         0) exit ;;
     esac
 done
-EOF
