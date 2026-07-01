@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# --- COLORES Y ESTILO ---
+# --- CONFIGURACIÓN DE COLORES (BOLD) ---
 V='\e[1;32m'; R='\e[1;31m'; A='\e[1;34m'; C='\e[1;36m'; Y='\e[1;33m'; B='\e[1;37m'; RE='\e[0m'
 
-# --- RUTAS ---
+# --- RUTAS DE TRABAJO ---
 PATH_LAB="/root/umbrel/umbrel-data/home/Downloads/laboratorio_c"
 PATH_C="$PATH_LAB/CODIGOS"
 VNC_FILE="/usr/share/novnc/vnc.html"
-{
+SHARE_DIR="/var/www/html/share"
 # --- FUNCIÓN: CONFIGURACIÓN AUTOMÁTICA DE INTERCAMBIO ---
 preparar_sistema_share() {
     echo -e "${Y}🔍 Verificando sistema de intercambio...${RE}"
@@ -42,32 +42,6 @@ preparar_sistema_share() {
     echo -e "${V}✔ Todo listo para compartir.${RE}"
     sleep 1
     }
-# --- FUNCIÓN DE AUTO-INSTALACIÓN PARA COMPARTIR ---
-preparar_sistema_share() {
-    # 1. Instalar paquetes si faltan (at para tiempo, qrencode para QR)
-    if ! command -v at &> /dev/null || ! command -v qrencode &> /dev/null; then
-        echo -e "${Y}⚙️ Componentes faltantes detectados. Instalando...${RE}"
-        sudo apt update && sudo apt install -y at qrencode
-        sudo systemctl enable --now atd
-    fi
-
-    # 2. Crear la carpeta compartida si no existe
-    if [ ! -d "/var/www/html/share" ]; then
-        sudo mkdir -p "/var/www/html/share"
-        sudo chmod 777 "/var/www/html/share"
-    fi
-
-    # 3. Inyectar la "puerta" en Nginx automáticamente
-    if ! grep -q "location /share/" "/etc/nginx/sites-available/web-definitiva"; then
-        echo -e "${Y}⚙️ Configurando acceso publico en Nginx...${RE}"
-        sudo sed -i '/location \/c\/ {/i \
-    location /share/ { \
-        alias /var/www/html/share/; \
-        autoindex off; \
-        add_header Content-Disposition "attachment"; \
-    }' "/etc/nginx/sites-available/web-definitiva"
-        sudo systemctl restart nginx
-    fi
 }
 
 # --- MOTOR DE ESTADO ---
@@ -208,6 +182,3 @@ while true; do
     esac
 done
 EOF
-chmod +x ~/panel.sh
-alias panel='bash ~/panel.sh'
-source ~/.bashrc
