@@ -1,4 +1,3 @@
-cat <<'EOF' > ~/panel.sh
 #!/bin/bash
 
 # --- COLORES Y ESTILO ---
@@ -10,7 +9,7 @@ PATH_C="$PATH_LAB/CODIGOS"
 VNC_FILE="/usr/share/novnc/vnc.html"
 {
 # --- FUNCIÓN: CONFIGURACIÓN AUTOMÁTICA DE INTERCAMBIO ---
-auto_setup_share() {
+preparar_sistema_share() {
     echo -e "${Y}🔍 Verificando sistema de intercambio...${RE}"
 
     # 1. Instalar qrencode (QR) y at (Tiempo) si no existen
@@ -145,7 +144,7 @@ menu_hacker() { # [S3]
 }
 # --- DEPARTAMENTO DE INTERCAMBIO ---
 menu_compartir() {
-    auto_setup_share  # <--- ESTA LÍNEA HACE LA MAGIA
+    preparar_sistema_share
     while true; do
         header
         echo -e " ${Y}📤 [S13] COMPARTIR LINK CON QR${RE}"
