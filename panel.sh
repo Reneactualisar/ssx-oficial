@@ -9,6 +9,40 @@ PATH_LAB="/root/umbrel/umbrel-data/home/Downloads/laboratorio_c"
 PATH_C="$PATH_LAB/CODIGOS"
 VNC_FILE="/usr/share/novnc/vnc.html"
 {
+# --- FUNCIÓN: CONFIGURACIÓN AUTOMÁTICA DE INTERCAMBIO ---
+auto_setup_share() {
+    echo -e "${Y}🔍 Verificando sistema de intercambio...${RE}"
+
+    # 1. Instalar qrencode (QR) y at (Tiempo) si no existen
+    if ! command -v qrencode &> /dev/null || ! command -v at &> /dev/null; then
+        echo -e "${Y}⚙️ Instalando herramientas faltantes...${RE}"
+        sudo apt update && sudo apt install -y qrencode at
+        sudo systemctl enable --now atd
+    fi
+
+    # 2. Crear carpeta pública si no existe
+    if [ ! -d "/var/www/html/share" ]; then
+        sudo mkdir -p /var/www/html/share
+        sudo chmod 777 /var/www/html/share
+    fi
+
+    # 3. Inyectar en Nginx si la ruta /share/ no existe
+    NGINX_FILE="/etc/nginx/sites-available/web-definitiva"
+    if [ -f "$NGINX_FILE" ]; then
+        if ! grep -q "location /share/" "$NGINX_FILE"; then
+            echo -e "${Y}⚙️ Abriendo puerta /share/ en Nginx...${RE}"
+            sudo sed -i '/location \/c\/ {/i \
+    location /share/ { \
+        alias /var/www/html/share/; \
+        autoindex off; \
+        add_header Content-Disposition "attachment"; \
+    }' "$NGINX_FILE"
+            sudo systemctl restart nginx
+        fi
+    fi
+    echo -e "${V}✔ Todo listo para compartir.${RE}"
+    sleep 1
+    }
 # --- FUNCIÓN DE AUTO-INSTALACIÓN PARA COMPARTIR ---
 preparar_sistema_share() {
     # 1. Instalar paquetes si faltan (at para tiempo, qrencode para QR)
@@ -111,6 +145,11 @@ menu_hacker() { # [S3]
 }
 # --- DEPARTAMENTO DE INTERCAMBIO ---
 menu_compartir() {
+    auto_setup_share  # <--- ESTA LÍNEA HACE LA MAGIA
+    while true; do
+        header
+        echo -e " ${Y}📤 [S13] COMPARTIR LINK CON QR${RE}"
+        # ... (el resto de tu código igual)
     preparar_sistema_share # Primero ejecuta la auto-instalacion
     while true; do
         header
