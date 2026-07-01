@@ -9,7 +9,7 @@ PATH_C="$PATH_LAB/CODIGOS"
 VNC_FILE="/usr/share/novnc/vnc.html"
 SHARE_DIR="/var/www/html/share"
 # --- FUNCIÓN: CONFIGURACIÓN AUTOMÁTICA DE INTERCAMBIO ---
-preparar_sistema_share() {
+ preparar_sistema_share() {
     echo -e "${Y}🔍 Verificando sistema de intercambio...${RE}"
 
     # 1. Instalar qrencode (QR) y at (Tiempo) si no existen
@@ -35,7 +35,7 @@ preparar_sistema_share() {
         alias /var/www/html/share/; \
         autoindex off; \
         add_header Content-Disposition "attachment"; \
-    }' "$NGINX_FILE"
+    ' "$NGINX_FILE"
             sudo systemctl restart nginx
         fi
     fi
@@ -43,31 +43,6 @@ preparar_sistema_share() {
     sleep 1
     }
 }
-
-# --- MOTOR DE ESTADO ---
-st() {
-    if pgrep "$1" > /dev/null || screen -ls | grep -q "$1" || [ "$(systemctl is-active $1 2>/dev/null)" == "active" ]; then
-        echo -ne "${V}ON${RE}"; else echo -ne "${R}OFF${RE}"; fi
-}
-
-# --- ENCABEZADO PRO ---
-header() {
-    clear
-    IP_V=$(hostname -I | awk '{print $1}')
-    HORA=$(date +"%I:%M:%S %p")
-    CPU=$(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}')"%"
-    RAM=$(free -h | awk 'NR==2 {print $3}')
-    echo -e "${A}╔══════════════════════════════════════════════════════════════╗${RE}"
-    echo -e "║  ${B}SSX-OFICIAL v60.0 - SECURITY ARCHITECT EDITION${RE}              ${A}║${RE}"
-    echo -e "║  ${B}DXVID DEVELOPER - MODO PREVENTIVO ACTIVADO${RE}                  ${A}║${RE}"
-    echo -e "╠══════════════════════┳═══════════════════════┳═══════════════╣${RE}"
-    echo -e "║ ${C}SISTEMA${RE}             ${A}║${RE} ${C}MEMORIA RAM${RE}           ${A}║${RE} ${C}PROCESADOR${RE}    ${A}║${RE}"
-    printf "${A}║${RE} IP: %-16s ${A}║${RE} En uso: %-14s ${A}║${RE} CPU: %-9s ${A}║${RE}\n" "$IP_V" "$RAM" "$CPU"
-    printf "${A}║${RE} Hora: %-14s ${A}║${RE} T. C: $(st dosbox)        ${A}║${RE} BOT: $(st bot-cine)    ${A}║${RE}\n" "$HORA"
-    echo -e "${A}╚══════════════════════╩═══════════════════════╩═══════════════╝${RE}"
-}
-
-# --- DEPARTAMENTOS ---
 
 menu_prog() { # [S1]
     while true; do
@@ -90,7 +65,6 @@ menu_prog() { # [S1]
         esac
     done
 }
-
 menu_hacker() { # [S3]
     while true; do
         header; echo -e " ${Y}🛡️ [03] AUDITORIA DE SEGURIDAD Y HACKING${RE}"
@@ -121,33 +95,26 @@ menu_compartir() {
     preparar_sistema_share
     while true; do
         header
-        echo -e " ${Y}📤 [S13] COMPARTIR LINK CON QR${RE}"
-        # ... (el resto de tu código igual)
-    preparar_sistema_share # Primero ejecuta la auto-instalacion
-    while true; do
-        header
-        echo -e " ${Y}📤 [S13] INTERCAMBIO DE ARCHIVOS (QR)${RE}"
+        echo -e " ${Y}📤 [S13] COMPARTIR ARCHIVO (QR)${RE}"
         echo -e " ----------------------------------------------------"
-        echo -e "  ${V}[1] •${RE} COMPARTIR CODIGO .C (CON QR)"
-        echo -e "  ${V}[2] •${RE} COMPARTIR LINK EXTERNO (QR TEMP)"
+        cd "$PATH_C"
+        files=(*)
+        if [ ${#files[@]} -eq 0 ]; then echo "No hay archivos."; sleep 2; break; fi
+        for i in "${!files[@]}"; do echo -e "  ${C}[$i]${RE} • ${files[$i]}"; done
         echo -e " ----------------------------------------------------"
         echo -e "  ${R}[0] • VOLVER${RE}"
-        read -p " Acción: " c_op
-        
-        if [ "$c_op" == "1" ]; then
-            cd "$PATH_C"
-            files=(*)
-            for i in "${!files[@]}"; do echo -e "[$i] ${files[$i]}"; done
-            read -p "Número: " idx
-            read -p "Minutos de vida: " mins
-            RANDOM_N=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8)
-            FILE_FIN="$RANDOM_N.${files[$idx]##*.}"
-            cp "${files[$idx]}" "/var/www/html/share/$FILE_FIN"
-            LINK="https://web-proyect.duckdns.org/share/$FILE_FIN"
-            clear; echo -e "${V}✔ QR GENERADO PARA: ${files[$idx]}${RE}"; qrencode -t ansiutf8 "$LINK"
-            echo "rm -f /var/www/html/share/$FILE_FIN" | at now + $mins minutes
-            read -p "Enter para volver..." x
-        elif [ "$c_op" == "0" ]; then break; fi
+        read -p " Elije archivo: " idx
+        [[ "$idx" == "0" ]] && break
+        read -p " ¿Minutos de vida?: " mins
+        RANDOM_N=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 8)
+        FILE_FIN="$RANDOM_N.${files[$idx]##*.}"
+        cp "${files[$idx]}" "$SHARE_DIR/$FILE_FIN"
+        chmod 644 "$SHARE_DIR/$FILE_FIN"
+        LINK="https://web-proyect.duckdns.org/share/$FILE_FIN"
+        clear; echo -e "${V}✔ QR GENERADO PARA: ${files[$idx]}${RE}"; qrencode -t ansiutf8 "$LINK"
+        echo -e "${Y}LINK:${RE} $LINK"
+        echo "rm -f $SHARE_DIR/$FILE_FIN" | at now + $mins minutes 2>/dev/null
+        read -p "Enter para volver..." x
     done
 }
 # --- MENU PRINCIPAL ---
